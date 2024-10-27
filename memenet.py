@@ -40,15 +40,30 @@ class MemeNet(nn.Module):
         dim_y //= 2
         # conv padding 1 -> no change in dimensions
 
-        #########################
-        # TODO: Add more layers #
-        #########################
+        self.conv3 = ai8x.FusedMaxPoolConv2dReLU(in_channels = 24, out_channels = 24, kernel_size = 3,
+                                          padding=1, bias=bias, **kwargs)
+        dim_x //= 2  # pooling, padding 0
+        dim_y //= 2
 
-        self.fcx = ai8x.Linear(16, num_classes, wide=True, bias=True, **kwargs)
+        self.conv4 = ai8x.FusedMaxPoolConv2dReLU(in_channels = 24, out_channels = 24, kernel_size = 3,
+                                          padding=1, bias=bias, **kwargs)
+        dim_x //= 2  # pooling, padding 0
+        dim_y //= 2
 
-        #########################
-        # TODO: Add more layers #
-        #########################
+        # conv padding 1 -> no change in dimensions
+        self.conv5 = ai8x.FusedConv2dReLU(in_channels = 24, out_channels = 24, kernel_size = 3,
+                                          padding=1, bias=bias, **kwargs)
+        # padding 1 -> no change in dimensions
+
+        self.mp = ai8x.MaxPool2d(kernel_size = 2, **kwargs)
+        dim_x //= 2  # pooling, padding 0
+        dim_y //= 2
+
+        self.fc1 = ai8x.FusedLinearReLU(dim_x*dim_y*24, 32, bias=True, **kwargs)
+
+        self.fc2 = ai8x.FusedLinearReLU(32, 16, bias=True, **kwargs)
+
+        self.fc3 = ai8x.Linear(16, num_classes, wide=True, bias=True, **kwargs)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -67,17 +82,16 @@ class MemeNet(nn.Module):
         
         x = self.conv1(x)
         x = self.conv2(x)
-        #########################
-        # TODO: Add more layers #
-        #########################
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+
+        x = self.mp(x)
 
         x = x.view(x.size(0), -1)
-
-        #########################
-        # TODO: Add more layers #
-        #########################
-        x = self.fcx(x)
-
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
         # Loss chosen, CrossEntropyLoss, takes softmax into account already func.log_softmax(x, dim=1))
 
         return x
